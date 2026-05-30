@@ -66,6 +66,11 @@ npm install        # installs deps + copies Plotly into public/vendor (no CDN)
 
 ## Part 1 — The CLI lessons
 
+> 📚 **Want a structured course?** See [`LESSONS.md`](./LESSONS.md) — a
+> self-paced curriculum with per-lesson study notes (concept → read → run →
+> exercises → self-check) in [`lessons/notes/`](./lessons/notes/). Read the note,
+> then run the matching lesson below.
+
 Run them in order. Each prints an explanation plus a visualization.
 
 ```bash
