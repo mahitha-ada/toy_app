@@ -9,6 +9,22 @@ const DARK = {
   margin: { l: 40, r: 16, t: 10, b: 40 },
 };
 
+// 3-D Plotly charts (scatter3d) require WebGL. If the browser has it disabled
+// (e.g. Chrome hardware acceleration is off), we fall back to a 2-D SVG scatter
+// so the visualizations still work — just without the rotatable 3rd axis.
+function hasWebGL() {
+  try {
+    const c = document.createElement("canvas");
+    return !!(
+      window.WebGLRenderingContext &&
+      (c.getContext("webgl") || c.getContext("experimental-webgl"))
+    );
+  } catch {
+    return false;
+  }
+}
+const WEBGL = hasWebGL();
+
 async function api(path, body) {
   const res = await fetch(path, {
     method: body ? "POST" : "GET",
@@ -81,17 +97,28 @@ document.getElementById("overviewLoad").addEventListener(
       byTopic[c.topic].z.push(points[i][2]);
       byTopic[c.topic].text.push(c.text);
     });
-    const traces = Object.entries(byTopic).map(([topic, g]) => ({
-      type: "scatter3d", mode: "markers", name: topic,
-      x: g.x, y: g.y, z: g.z, text: g.text, hoverinfo: "text+name",
-      marker: { size: 6, color: topicColors[topic], opacity: 0.9 },
-    }));
-    Plotly.newPlot("overviewScatter", traces, {
-      ...DARK, legend: { orientation: "h" },
-      scene: { xaxis: { title: "PC1" }, yaxis: { title: "PC2" }, zaxis: { title: "PC3" } },
-    }, { responsive: true, displayModeBar: false });
+    const traces = Object.entries(byTopic).map(([topic, g]) =>
+      WEBGL
+        ? {
+            type: "scatter3d", mode: "markers", name: topic,
+            x: g.x, y: g.y, z: g.z, text: g.text, hoverinfo: "text+name",
+            marker: { size: 6, color: topicColors[topic], opacity: 0.9 },
+          }
+        : {
+            type: "scatter", mode: "markers", name: topic,
+            x: g.x, y: g.y, text: g.text, hoverinfo: "text+name",
+            marker: { size: 13, color: topicColors[topic], opacity: 0.9 },
+          }
+    );
+    const layout = WEBGL
+      ? { ...DARK, legend: { orientation: "h" }, scene: { xaxis: { title: "PC1" }, yaxis: { title: "PC2" }, zaxis: { title: "PC3" } } }
+      : { ...DARK, legend: { orientation: "h" }, xaxis: { title: "PC1" }, yaxis: { title: "PC2" } };
+    Plotly.newPlot("overviewScatter", traces, layout, { responsive: true, displayModeBar: false });
+    const shown = WEBGL ? explained : explained.slice(0, 2);
     document.getElementById("overviewVar").textContent =
-      `PC1+PC2+PC3 capture ${(explained.reduce((a, b) => a + b, 0) * 100).toFixed(1)}% of the variance.`;
+      (WEBGL ? "PC1+PC2+PC3 capture " : "PC1+PC2 capture ") +
+      `${(shown.reduce((a, b) => a + b, 0) * 100).toFixed(1)}% of the variance.` +
+      (WEBGL ? "" : "  (Showing 2-D — enable Chrome hardware acceleration for the rotatable 3-D view.)");
 
     // Heatmap.
     const labels = corpus.map((c, i) => `${i}: ${c.text.slice(0, 24)}…`);
@@ -239,11 +266,23 @@ document.getElementById("searchBtn").addEventListener(
 // ===========================================================================
 // ⑥ MAP (PROJECTION)
 // ===========================================================================
+// Without WebGL the 3-D scatter can't render — lock the control to 2-D.
+if (!WEBGL) {
+  const r3 = document.querySelector('input[name="dims"][value="3"]');
+  const r2 = document.querySelector('input[name="dims"][value="2"]');
+  if (r3 && r2) {
+    r3.disabled = true;
+    r2.checked = true;
+    r3.parentElement.title = "3-D needs WebGL — enable Chrome hardware acceleration";
+    r3.parentElement.style.opacity = "0.5";
+  }
+}
+
 document.getElementById("projBtn").addEventListener(
   "click",
   busy("projBtn", "projStatus", async () => {
     const raw = document.getElementById("projList").value.split("\n").map((s) => s.trim()).filter(Boolean);
-    const components = Number(document.querySelector('input[name="dims"]:checked').value);
+    const components = WEBGL ? Number(document.querySelector('input[name="dims"]:checked').value) : 2;
     const body = { components };
     if (raw.length >= 2) body.texts = raw; // else server uses built-in corpus
     const { points, explained, labels, topics, topicColors } = await api("/api/project", body);
