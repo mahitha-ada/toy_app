@@ -1,0 +1,22 @@
+{
+  "name": "embeddings-tutorial",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A hands-on tutorial for transformers.js, ONNX, embeddings and vector search — 100% Node ecosystem, no LLM/Ollama.",
+  "scripts": {
+    "postinstall": "node scripts/copy-vendor.js",
+    "start": "node server.js",
+    "lesson:1": "node lessons/01-tokenization.js",
+    "lesson:2": "node lessons/02-embeddings.js",
+    "lesson:3": "node lessons/03-similarity.js",
+    "lesson:4": "node lessons/04-semantic-search.js",
+    "lesson:5": "node lessons/05-clustering.js",
+    "lessons": "node lessons/run-all.js"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
+    "express": "^4.22.2",
+    "plotly.js-dist-min": "^2.35.3"
+  }
+}

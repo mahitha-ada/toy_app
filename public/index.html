@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Embeddings Playground · transformers.js + ONNX</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Plotly is served locally from node_modules (copied to /vendor) — no CDN. -->
+  <script src="vendor/plotly.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <h1>🧭 Embeddings Playground</h1>
+      <p>Learn <b>transformers.js</b> · <b>ONNX</b> · <b>embeddings</b> · <b>vector search</b> — 100% Node, no LLM.</p>
+    </div>
+    <div class="model-badge" id="modelBadge">loading model info…</div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-tab="overview">① Overview</button>
+    <button class="tab" data-tab="tokenize">② Tokenize</button>
+    <button class="tab" data-tab="embed">③ Embedding</button>
+    <button class="tab" data-tab="similarity">④ Similarity</button>
+    <button class="tab" data-tab="search">⑤ Search</button>
+    <button class="tab" data-tab="project">⑥ Map (2D/3D)</button>
+  </nav>
+
+  <main>
+    <!-- ① OVERVIEW ------------------------------------------------------- -->
+    <section class="panel active" id="overview">
+      <h2>The big picture</h2>
+      <p class="lead">
+        Text goes in → a small neural network (running on <b>ONNX Runtime</b> via
+        <b>transformers.js</b>) turns it into a <b>384-number vector</b> → similar
+        meanings end up close together. Below is the built-in corpus, embedded and
+        visualized two ways. Rotate the 3-D map; hover any point.
+      </p>
+      <div class="pipeline">
+        <span class="step">"a fluffy cat"</span><span class="arrow">→</span>
+        <span class="step">tokenizer</span><span class="arrow">→</span>
+        <span class="step">MiniLM (ONNX)</span><span class="arrow">→</span>
+        <span class="step">mean-pool + normalize</span><span class="arrow">→</span>
+        <span class="step vec">[0.02, -0.07, … ] (384-D)</span>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h3>3-D map of meaning (PCA)</h3>
+          <div id="overviewScatter" class="plot tall"></div>
+          <p class="hint" id="overviewVar"></p>
+        </div>
+        <div class="card">
+          <h3>Pairwise similarity heatmap</h3>
+          <div id="overviewHeat" class="plot tall"></div>
+          <p class="hint">Bright = similar meaning. Notice the colored blocks along the diagonal — those are topics.</p>
+        </div>
+      </div>
+      <button class="primary" id="overviewLoad">Embed the corpus & visualize</button>
+      <p class="status" id="overviewStatus"></p>
+    </section>
+
+    <!-- ② TOKENIZE ------------------------------------------------------- -->
+    <section class="panel" id="tokenize">
+      <h2>② What the model actually reads</h2>
+      <p class="lead">Models don't see words — they see <b>sub-word tokens</b> mapped to integer IDs. Long/rare words get split into pieces (<code>##</code> = continuation).</p>
+      <div class="row">
+        <input id="tokenInput" type="text" value="Tokenization splits unfamiliar words into subwords!" />
+        <button class="primary" id="tokenBtn">Tokenize</button>
+      </div>
+      <div id="tokenChips" class="chips"></div>
+      <p class="status" id="tokenStatus"></p>
+    </section>
+
+    <!-- ③ EMBEDDING ------------------------------------------------------ -->
+    <section class="panel" id="embed">
+      <h2>③ One sentence → 384 numbers</h2>
+      <p class="lead">Every input becomes the same fixed-length vector. Here is that vector drawn as a bar chart and a heat strip. Change the text and watch the fingerprint change.</p>
+      <div class="row">
+        <input id="embedInput" type="text" value="A fluffy cat naps in the warm sun." />
+        <button class="primary" id="embedBtn">Embed</button>
+      </div>
+      <div class="card">
+        <h3>The 384 components</h3>
+        <div id="embedBars" class="plot"></div>
+        <div id="embedStrip" class="plot short"></div>
+        <p class="hint" id="embedMeta"></p>
+      </div>
+      <p class="status" id="embedStatus"></p>
+    </section>
+
+    <!-- ④ SIMILARITY ----------------------------------------------------- -->
+    <section class="panel" id="similarity">
+      <h2>④ How close are two meanings?</h2>
+      <p class="lead">Compare two sentences directly, or paste a list to get the full similarity matrix.</p>
+      <div class="grid-2">
+        <div class="card">
+          <h3>Two-sentence gauge</h3>
+          <input id="simA" type="text" value="A cat is sleeping on the sofa." />
+          <input id="simB" type="text" value="A kitten naps on the couch." />
+          <button class="primary" id="simPairBtn">Compare</button>
+          <div id="simGauge" class="plot"></div>
+        </div>
+        <div class="card">
+          <h3>Similarity matrix</h3>
+          <textarea id="simList" rows="6">A cat is sleeping on the sofa.
+A kitten naps on the couch.
+The stock market crashed today.
+Shares plunged on the exchange.
+I am learning about embeddings.</textarea>
+          <button class="primary" id="simMatrixBtn">Build matrix</button>
+          <div id="simMatrix" class="plot"></div>
+        </div>
+      </div>
+      <p class="status" id="simStatus"></p>
+    </section>
+
+    <!-- ⑤ SEARCH --------------------------------------------------------- -->
+    <section class="panel" id="search">
+      <h2>⑤ Semantic search (a vector DB in disguise)</h2>
+      <p class="lead">Embed documents once, embed the query, sort by cosine similarity. No keyword matching — results come back by <b>meaning</b>. Searches the built-in corpus.</p>
+      <div class="row">
+        <input id="searchInput" type="text" value="how do I cook something tasty?" />
+        <button class="primary" id="searchBtn">Search</button>
+      </div>
+      <div id="searchResults" class="results"></div>
+      <p class="status" id="searchStatus"></p>
+    </section>
+
+    <!-- ⑥ MAP ------------------------------------------------------------ -->
+    <section class="panel" id="project">
+      <h2>⑥ See the whole space</h2>
+      <p class="lead">PCA squashes 384-D down to 2-D/3-D so you can <b>see</b> clusters. Use the built-in corpus or paste your own sentences (one per line) to map them.</p>
+      <div class="row">
+        <textarea id="projList" rows="5" placeholder="Leave empty to use the built-in corpus, or paste your own sentences (one per line)…"></textarea>
+      </div>
+      <div class="row controls">
+        <label><input type="radio" name="dims" value="2" /> 2-D</label>
+        <label><input type="radio" name="dims" value="3" checked /> 3-D</label>
+        <button class="primary" id="projBtn">Project & plot</button>
+      </div>
+      <div class="card">
+        <div id="projScatter" class="plot tall"></div>
+        <p class="hint" id="projVar"></p>
+      </div>
+      <p class="status" id="projStatus"></p>
+    </section>
+  </main>
+
+  <footer>
+    <span>Model runs locally via ONNX Runtime · vectors computed in plain JS · open the lessons in <code>/lessons</code> for the CLI version.</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
